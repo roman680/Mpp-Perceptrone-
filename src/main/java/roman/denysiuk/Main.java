@@ -2,12 +2,8 @@ package roman.denysiuk;
 
 import roman.denysiuk.model.DatasetSplit;
 import roman.denysiuk.model.Observation;
+import roman.denysiuk.model.TrainingSession;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
@@ -16,22 +12,17 @@ public class Main {
     private static final int FEATURE_Y = 3; // petal width
 
     public static void main(String[] args) {
-        TrainedSession session = prepareSession();
+        TrainingSession session = prepareSession();
 
         try (Scanner scanner = new Scanner(System.in)) {
             while (true) {
-                System.out.println("\nChoose an option:");
-                System.out.println("1. Launch prediction");
-                System.out.println("2. Make new prediction on user data");
-                System.out.println("0. Exit");
-                System.out.print("Your choice: ");
-
+                printMenu();
                 String choice = scanner.nextLine().trim();
 
                 if ("1".equals(choice)) {
                     launchPrediction(session);
                 } else if ("2".equals(choice)) {
-                    makePredictionOnUserData(scanner, session.perceptron);
+                    makePredictionOnUserData(scanner, session.getPerceptron());
                 } else if ("0".equals(choice)) {
                     System.out.println("Goodbye!");
                     break;
@@ -42,8 +33,16 @@ public class Main {
         }
     }
 
-    private static TrainedSession prepareSession() {
-        List<Observation> observations = loadIrisSubset();
+    private static void printMenu() {
+        System.out.println("\nChoose an option:");
+        System.out.println("1. Launch prediction");
+        System.out.println("2. Make new prediction on user data");
+        System.out.println("0. Exit");
+        System.out.print("Your choice: ");
+    }
+
+    private static TrainingSession prepareSession() {
+        List<Observation> observations = IrisDatasetLoader.loadSetosaVersicolor();
         DatasetSplit split = PrepareDataset.trainTestSplit(observations);
 
         double[][] trainInputs = selectFeatures(split.getTrainDataset());
@@ -55,23 +54,26 @@ public class Main {
         Perceptron perceptron = new Perceptron(2, 0.0, 0.1, 1000);
         perceptron.train(trainInputs, trainLabels, 0.1, testInputs, testLabels);
 
-        return new TrainedSession(perceptron, trainInputs, testInputs, testLabels);
+        return new TrainingSession(perceptron, trainInputs, trainLabels, testInputs, testLabels);
     }
 
-    private static void launchPrediction(TrainedSession session) {
-        int[] predictions = session.perceptron.predictAll(session.testInputs);
-        double testAccuracy = EvaluationMetrics.measureAccuracy(session.testLabels, predictions);
+    private static void launchPrediction(TrainingSession session) {
+        Perceptron perceptron = session.getPerceptron();
 
-        System.out.println("Train samples: " + session.trainInputs.length);
-        System.out.println("Test samples: " + session.testInputs.length);
-        System.out.println("Epochs: " + session.perceptron.getEpochs());
+        int[] predictions = perceptron.predictAll(session.getTestInputs());
+        double testAccuracy = EvaluationMetrics.measureAccuracy(session.getTestLabels(), predictions);
 
-        for (int i = 0; i < session.perceptron.getAccuracyByEpoch().size(); i++) {
-            System.out.printf("Epoch %d accuracy: %.4f%n", i + 1, session.perceptron.getAccuracyByEpoch().get(i));
+        System.out.println("Train samples: " + session.getTrainInputs().length);
+        System.out.println("Test samples: " + session.getTestInputs().length);
+        System.out.println("Epochs: " + perceptron.getEpochs());
+
+        for (int i = 0; i < perceptron.getAccuracyByEpoch().size(); i++) {
+            System.out.printf("Epoch %d accuracy: %.4f%n", i + 1, perceptron.getAccuracyByEpoch().get(i));
         }
 
         System.out.printf("Final test accuracy: %.4f%n", testAccuracy);
-        printDecisionBoundary(session.perceptron);
+        printDecisionBoundary(perceptron);
+        ConsolePlotter.plot(session.getTestInputs(), session.getTestLabels(), perceptron);
     }
 
     private static void printDecisionBoundary(Perceptron perceptron) {
@@ -98,7 +100,6 @@ public class Main {
 
             int prediction = perceptron.predict(new double[]{petalLength, petalWidth});
             String predictedLabel = prediction == 1 ? "setosa" : "versicolor";
-
             System.out.println("Predicted class: " + predictedLabel + " (" + prediction + ")");
         } catch (NumberFormatException e) {
             System.out.println("Invalid numeric input. Please try again.");
@@ -125,61 +126,5 @@ public class Main {
         }
 
         return labels;
-    }
-
-    private static List<Observation> loadIrisSubset() {
-        List<Observation> observations = new ArrayList<>();
-
-        try (InputStream stream = Main.class.getResourceAsStream("/iris.csv")) {
-            if (stream == null) {
-                throw new IllegalStateException("Could not load iris.csv from resources.");
-            }
-
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
-                String line;
-                boolean isHeader = true;
-
-                while ((line = reader.readLine()) != null) {
-                    if (isHeader) {
-                        isHeader = false;
-                        continue;
-                    }
-
-                    String[] parts = line.split(",");
-                    String species = parts[4].trim();
-
-                    if (!"setosa".equals(species) && !"versicolor".equals(species)) {
-                        continue;
-                    }
-
-                    double[] features = new double[]{
-                            Double.parseDouble(parts[0]),
-                            Double.parseDouble(parts[1]),
-                            Double.parseDouble(parts[2]),
-                            Double.parseDouble(parts[3])
-                    };
-
-                    observations.add(new Observation(features, species));
-                }
-            }
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to read iris.csv.", e);
-        }
-
-        return observations;
-    }
-
-    private static final class TrainedSession {
-        private final Perceptron perceptron;
-        private final double[][] trainInputs;
-        private final double[][] testInputs;
-        private final int[] testLabels;
-
-        private TrainedSession(Perceptron perceptron, double[][] trainInputs, double[][] testInputs, int[] testLabels) {
-            this.perceptron = perceptron;
-            this.trainInputs = trainInputs;
-            this.testInputs = testInputs;
-            this.testLabels = testLabels;
-        }
     }
 }
