@@ -1,8 +1,8 @@
 package roman.denysiuk.model;
 
 public class Observation {
-    private double[] data;
-    private String label;
+    private final double[] data;
+    private final String label;
 
     public Observation(double[] data, String label) {
         this.data = data;
@@ -13,15 +13,11 @@ public class Observation {
         return data;
     }
 
-    public void setData(double[] data) {
-        this.data = data;
-    }
-
     public String getLabel() {
         return label;
     }
 
-    public void setLabel(String label) {
-        this.label = label;
+    public int getBinaryLabel() {
+        return "setosa".equals(label) ? 1 : 0;
     }
 }
