@@ -16,6 +16,33 @@ public class Main {
     private static final int FEATURE_Y = 3; // petal width
 
     public static void main(String[] args) {
+        TrainedSession session = prepareSession();
+
+        try (Scanner scanner = new Scanner(System.in)) {
+            while (true) {
+                System.out.println("\nChoose an option:");
+                System.out.println("1. Launch prediction");
+                System.out.println("2. Make new prediction on user data");
+                System.out.println("0. Exit");
+                System.out.print("Your choice: ");
+
+                String choice = scanner.nextLine().trim();
+
+                if ("1".equals(choice)) {
+                    launchPrediction(session);
+                } else if ("2".equals(choice)) {
+                    makePredictionOnUserData(scanner, session.perceptron);
+                } else if ("0".equals(choice)) {
+                    System.out.println("Goodbye!");
+                    break;
+                } else {
+                    System.out.println("Unknown option. Please choose 1, 2, or 0.");
+                }
+            }
+        }
+    }
+
+    private static TrainedSession prepareSession() {
         List<Observation> observations = loadIrisSubset();
         DatasetSplit split = PrepareDataset.trainTestSplit(observations);
 
@@ -28,23 +55,24 @@ public class Main {
         Perceptron perceptron = new Perceptron(2, 0.0, 0.1, 1000);
         perceptron.train(trainInputs, trainLabels, 0.1, testInputs, testLabels);
 
-        int[] predictions = perceptron.predictAll(testInputs);
-        double testAccuracy = EvaluationMetrics.measureAccuracy(testLabels, predictions);
+        return new TrainedSession(perceptron, trainInputs, testInputs, testLabels);
+    }
 
-        System.out.println("Train samples: " + trainInputs.length);
-        System.out.println("Test samples: " + testInputs.length);
-        System.out.println("Epochs: " + perceptron.getEpochs());
+    private static void launchPrediction(TrainedSession session) {
+        int[] predictions = session.perceptron.predictAll(session.testInputs);
+        double testAccuracy = EvaluationMetrics.measureAccuracy(session.testLabels, predictions);
 
-        for (int i = 0; i < perceptron.getAccuracyByEpoch().size(); i++) {
-            System.out.printf("Epoch %d accuracy: %.4f%n", i + 1, perceptron.getAccuracyByEpoch().get(i));
+        System.out.println("Train samples: " + session.trainInputs.length);
+        System.out.println("Test samples: " + session.testInputs.length);
+        System.out.println("Epochs: " + session.perceptron.getEpochs());
+
+        for (int i = 0; i < session.perceptron.getAccuracyByEpoch().size(); i++) {
+            System.out.printf("Epoch %d accuracy: %.4f%n", i + 1, session.perceptron.getAccuracyByEpoch().get(i));
         }
 
         System.out.printf("Final test accuracy: %.4f%n", testAccuracy);
-
-        printDecisionBoundary(perceptron);
-        runPredictionConsole(perceptron);
+        printDecisionBoundary(session.perceptron);
     }
-
 
     private static void printDecisionBoundary(Perceptron perceptron) {
         double[] w = perceptron.getWeights();
@@ -58,20 +86,22 @@ public class Main {
         System.out.printf("Decision boundary (petal_width = a * petal_length + b): y = %.4fx + %.4f%n", a, b);
     }
 
-    private static void runPredictionConsole(Perceptron perceptron) {
+    private static void makePredictionOnUserData(Scanner scanner, Perceptron perceptron) {
         System.out.println("\nEnter a new observation to predict class.");
         System.out.println("Use two attributes: petal length and petal width.");
 
-        try (Scanner scanner = new Scanner(System.in)) {
+        try {
             System.out.print("Petal length: ");
-            double petalLength = scanner.nextDouble();
+            double petalLength = Double.parseDouble(scanner.nextLine().trim());
             System.out.print("Petal width: ");
-            double petalWidth = scanner.nextDouble();
+            double petalWidth = Double.parseDouble(scanner.nextLine().trim());
 
             int prediction = perceptron.predict(new double[]{petalLength, petalWidth});
             String predictedLabel = prediction == 1 ? "setosa" : "versicolor";
 
             System.out.println("Predicted class: " + predictedLabel + " (" + prediction + ")");
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid numeric input. Please try again.");
         }
     }
 
@@ -137,5 +167,19 @@ public class Main {
         }
 
         return observations;
+    }
+
+    private static final class TrainedSession {
+        private final Perceptron perceptron;
+        private final double[][] trainInputs;
+        private final double[][] testInputs;
+        private final int[] testLabels;
+
+        private TrainedSession(Perceptron perceptron, double[][] trainInputs, double[][] testInputs, int[] testLabels) {
+            this.perceptron = perceptron;
+            this.trainInputs = trainInputs;
+            this.testInputs = testInputs;
+            this.testLabels = testLabels;
+        }
     }
 }

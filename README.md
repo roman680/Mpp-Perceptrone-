@@ -11,7 +11,9 @@ Perceptron implementation (Delta Rule) using only Java base libraries.
 - `EvaluationMetrics.measureAccuracy(realClasses, predictedClasses)`
 - epoch-by-epoch accuracy printing
 - console output of decision-boundary equation (petal length/width)
-- console UI for user-entered prediction
+- console menu with options:
+  1) Launch prediction
+  2) Make new prediction on user data
 
 ## Run
 
